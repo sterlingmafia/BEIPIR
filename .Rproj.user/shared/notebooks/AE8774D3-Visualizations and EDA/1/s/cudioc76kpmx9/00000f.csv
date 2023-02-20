@@ -1,0 +1,5 @@
+"0","
+all_at_once <- read_excel(""OG Files/BEIPIR Master Key_Jan 2023v3b.xlsx"", 
+    sheet = ""Everything all together"")
+"
+"2","New names:"

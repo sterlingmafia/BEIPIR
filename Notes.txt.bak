@@ -1,0 +1,44 @@
+Central Hypothesis: There is an association between muscle composition and genetic profiles
+	-Specifically, interested in relationship between IMAT (Intra-Muscular Adipose Tissue) following SCI (Spinal Cord Injury) and DNA variants
+	-Some veterans with SCI suffer from recurring PrI, and some are PrI-free. Look for genetic factor.
+
+Idea: incorporate DNA data into extant BEIPIR model to enable identification of intervention pathways
+
+Aim 1: Collect DNA data from 38 individuals with varyind degrees of SCI (A-D rating) for whom we already have IMAT data. Do a differential comparison to find which DNA variants/genes are likely associated to IMAT.
+	-Analysis Ideas: regression? CART?
+
+Aim 2: Update and re-validate BEIPIR model with longitudinal, stratified data
+	-no idea, need more detail
+
+Supplementary Aim 1: Conduct secondary analysis of previously-collected samples to find genes presented differentially between muscle and blood
+	-WHY are we doing this? is the idea the genes will be expressed differently in muscle (due to the IMAT) and blood? Idk enough about biology to understand this
+	-no idea, need more detail
+	
+Supplementary Aim 2: Conduct a secondary analysis of the SCI-PIR database to identify common symptoms and risk factors for PrI post-SCI
+	-goal is to eventually a develop an inventory/assessment for veterans living with SCI
+	-CART, Factor analysis(PCR/PCA)
+	
+	
+	
+Questions about data set:
+-Do we have visit dates? not sure it matters, just curious
+-how were the cutoffs developed for some categorical variables? E.g. NUTI, PRI
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
