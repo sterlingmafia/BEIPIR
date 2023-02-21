@@ -19,7 +19,7 @@ library(GGally)
 
 # Read in Data
 
-```{r read_in}
+```{r read_in, include=FALSE}
 
 baseline <- read_excel("OG Files/BEIPIR Master Key_Jan 2023v3b.xlsx", 
     sheet = "Baseline visit only")
@@ -29,7 +29,7 @@ all_at_once <- read_excel("OG Files/BEIPIR Master Key_Jan 2023v3b.xlsx",
 
 ```
 
-```{r data_setup_and_wrangling}
+```{r data_setup_and_wrangling, include=FALSE}
 # Baseline Data
 baseline$SUBJ <- as.integer(baseline$SUBJ)
 baseline$VINO <- as.integer(baseline$VINO)
@@ -104,7 +104,7 @@ all_at_once$EDUC <- as_factor(all_at_once$EDUC)
 
 Plot histograms, points against each other, maybe some time series for subjects with multiple visits.
 
-```{r baseline_visualizations, fig.width=10}
+```{r baseline_visualizations, fig.width=10, echo=FALSE, warning=FALSE, }
 g.theme <- theme(
   panel.background = element_rect(fill = "papayawhip")
 )
@@ -170,19 +170,20 @@ baseline %>% ggplot(aes(x = NODR, y = IMAT)) +
 # All numerical
 
 baseline %>% ggplot(aes(x = SYRS)) +
-  geom_histogram()
+  geom_histogram(bins = 30)
 
 baseline %>% ggplot(aes(x = BMI)) +
-  geom_histogram()
+  geom_histogram(bins = 30)
 
 baseline %>% ggplot(aes(x = IMAT)) +
-  geom_histogram()
+  geom_histogram(bins = 30)
 
 baseline %>% ggplot(aes(x = AGEN)) +
-  geom_histogram()
+  geom_histogram(bins = 30)
 
 baseline %>% ggplot(aes(x = YRIN)) +
-  geom_histogram()
+  geom_histogram(bins = 30)
+
 
 
 numeric <- baseline %>% dplyr::select(IMAT, AGEN, YRIN, SYRS, BMI)
@@ -213,7 +214,8 @@ When examining SYRS (smoking years) vs. IMAT, what are the early striations and 
 
 Try looking at distances between points (if possible), correlations, partial correlations
 
-```{r baseline_numerical_EDA}
+```{r baseline_numerical_EDA, echo=FALSE}
+print("Summary")
 summary(baseline)
 
 numeric <- baseline %>% dplyr::select(IMAT, AGEN, YRIN, SYRS, BMI)
