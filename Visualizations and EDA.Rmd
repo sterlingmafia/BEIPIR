@@ -1,8 +1,8 @@
 ---
 title: "BEIPIR"
-author: "Gabriel Brehm"
-date: "2023-02-16"
-output: html_document
+author: "Dr. Jiayang Sun, Gabriel Brehm"
+date: "2023-02-22"
+output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
@@ -13,11 +13,10 @@ library(ggplot2)
 library(plotly)
 library(readxl)
 library(rdist)
-library(DataExplorer)
-library(GGally)
+library(forcats)
+library(car)
+library(ggthemes)
 ```
-
-# Read in Data
 
 ```{r read_in, include=FALSE}
 
@@ -30,7 +29,17 @@ all_at_once <- read_excel("OG Files/BEIPIR Master Key_Jan 2023v3b.xlsx",
 ```
 
 ```{r data_setup_and_wrangling, include=FALSE}
-# Baseline Data
+# All At Once Data
+all_at_once <- all_at_once %>% mutate(across(SUBJ:YRIN, as.numeric))
+all_at_once <- all_at_once %>% mutate(across(RACE:PRI, as_factor))
+all_at_once <- all_at_once %>% mutate(across(IMAT, as.numeric))
+all_at_once <- all_at_once %>% mutate(across(WCTP:SMOK, as_factor))
+all_at_once <- all_at_once %>% mutate(across(SYRS:HGA1, as.numeric))
+all_at_once <- all_at_once %>% mutate(across(LIVS:PRFQ, as_factor))
+all_at_once <- all_at_once %>% mutate(across(HRSC, as.numeric))
+all_at_once <- all_at_once %>% mutate(across(EMPL:EDUC, as_factor))
+
+# Baseline data (obv I figured out the tidyverse way to do this later lol)
 baseline$SUBJ <- as.integer(baseline$SUBJ)
 baseline$VINO <- as.integer(baseline$VINO)
 baseline$YRIN <- as.numeric(baseline$YRIN)
@@ -63,152 +72,104 @@ baseline$EMPL <- as_factor(baseline$EMPL)
 baseline$MARS <- as_factor(baseline$MARS)
 baseline$EDUC <- as_factor(baseline$EDUC)
 
-# Everything all together data
-
-all_at_once$SUBJ <- as.integer(all_at_once$SUBJ)
-all_at_once$VINO <- as.integer(all_at_once$VINO)
-all_at_once$YRIN <- as.numeric(all_at_once$YRIN)
-all_at_once$RACE <- as_factor(all_at_once$RACE)
-all_at_once$ETHN <- as_factor(all_at_once$ETHN)
-all_at_once$GEND <- as_factor(all_at_once$GEND)
-all_at_once$LOI <- as_factor(all_at_once$LOI)
-all_at_once$ASIA <- as_factor(all_at_once$ASIA)
-all_at_once$PRI <- as_factor(all_at_once$PRI)
-all_at_once$IMAT <- as.numeric(all_at_once$IMAT)
-all_at_once$NUTI <- as_factor(all_at_once$NUTI)
-all_at_once$BOI <- as_factor(all_at_once$BOI)
-all_at_once$BLI <- as_factor(all_at_once$BLI)
-all_at_once$VASC <- as_factor(all_at_once$VASC)
-all_at_once$RESP <- as_factor(all_at_once$RESP)
-all_at_once$PNEU <- as_factor(all_at_once$PNEU)
-all_at_once$DIAB <- as_factor(all_at_once$DIAB)
-all_at_once$DEPR <- as_factor(all_at_once$DEPR)
-all_at_once$ANXI <- as_factor(all_at_once$ANXI)
-all_at_once$PAIN <- as_factor(all_at_once$PAIN)
-all_at_once$SLEP <- as_factor(all_at_once$SLEP)
-all_at_once$ALCO <- as_factor(all_at_once$ALCO)
-all_at_once$NODR <- as_factor(all_at_once$NODR)
-all_at_once$DRUG <- as_factor(all_at_once$DRUG)
-all_at_once$SMOK <- as_factor(all_at_once$SMOK) 
-all_at_once$SYRS <- as.numeric(all_at_once$SYRS) # smoking years is interesting because there are numbers (for number of smmoking years), N/A (for non-smokers), and "unk" for unknown (data not collected). might want to split this into 2 later: one as factor and one as actual years
-all_at_once$BMI <- as.numeric(all_at_once$BMI)
-all_at_once$LIVS <- as_factor(all_at_once$LIVS)
-all_at_once$EMPL <- as_factor(all_at_once$EMPL)
-all_at_once$MARS <- as_factor(all_at_once$MARS)
-all_at_once$EDUC <- as_factor(all_at_once$EDUC)
 
 
 ```
 
 # Visualizations
 
-Plot histograms, points against each other, maybe some time series for subjects with multiple visits.
-
-```{r baseline_visualizations, fig.width=10, echo=FALSE, warning=FALSE, }
-g.theme <- theme(
-  panel.background = element_rect(fill = "papayawhip")
-)
-
-# Categorical
-baseline %>% ggplot(aes(x = GEND, y = IMAT)) +
-  geom_violin()
-
-baseline %>% ggplot(aes(x = PRI, y = IMAT)) +
-  geom_violin()
-
-baseline %>% ggplot(aes(x = NUTI, y = IMAT)) +
-  geom_violin()
-
-baseline %>% ggplot(aes(x = LOI, y = IMAT)) +
-  geom_violin()
-
-baseline %>% ggplot(aes(x = BLI, y = IMAT)) +
-  geom_violin()
-
-baseline %>% ggplot(aes(x = ASIA, y = IMAT)) +
-  geom_violin()
-
-baseline %>% ggplot(aes(x = ASIA, y = PRI)) +
-  geom_count()
-
-baseline %>% ggplot(aes(x = BOI, y = IMAT)) +
-  geom_violin()
-
-baseline %>% ggplot(aes(x = BOI, y = AGEN)) +
-  geom_violin()
-
-baseline %>% ggplot(aes(x = BLI, y = IMAT)) +
-  geom_violin()
-
-baseline %>% ggplot(aes(x = BLI, y = AGEN)) +
-  geom_violin()
-
-baseline %>% ggplot(aes(x = VASC, y = IMAT)) +
-  geom_violin()
-
-baseline %>% ggplot(aes(x = VASC, y = AGEN)) +
-  geom_violin()
-
-baseline %>% ggplot(aes(x = RESP, y = IMAT)) +
-  geom_violin()
-
-baseline %>% ggplot(aes(x = RESP, y = AGEN)) +
-  geom_violin()
-
-baseline %>% ggplot(aes(x = DIAB, y = PRI)) +
-  geom_count()
-
-baseline %>% ggplot(aes(x = DIAB, y = IMAT)) +
-  geom_violin()
-
-baseline %>% ggplot(aes(x = SMOK, y = IMAT)) +
-  geom_violin()
-
-baseline %>% ggplot(aes(x = NODR, y = IMAT)) +
-  geom_violin()
-
-# All numerical
-
-baseline %>% ggplot(aes(x = SYRS)) +
-  geom_histogram(bins = 30)
-
-baseline %>% ggplot(aes(x = BMI)) +
-  geom_histogram(bins = 30)
-
-baseline %>% ggplot(aes(x = IMAT)) +
-  geom_histogram(bins = 30)
-
-baseline %>% ggplot(aes(x = AGEN)) +
-  geom_histogram(bins = 30)
-
-baseline %>% ggplot(aes(x = YRIN)) +
-  geom_histogram(bins = 30)
-
-
-
-numeric <- baseline %>% dplyr::select(IMAT, AGEN, YRIN, SYRS, BMI)
-
-pairs(numeric)
-
-
-baseline %>% ggplot(aes(x = AGEN, y = IMAT)) +
-  geom_point()
-
-baseline %>% ggplot(aes(x = YRIN, y = IMAT)) +
-  geom_point()
-
-baseline %>% ggplot(aes(x = BMI, y = IMAT)) +
-  geom_point()
-
-baseline %>% ggplot(aes(x = SYRS, y = IMAT)) +
-  geom_point()
-
-baseline %>% ggplot(aes(x = SYRS, y = BMI)) +
-  geom_point()
+```{r themes, include=FALSE}
+g.theme <- theme_stata()
 
 ```
 
-When examining SYRS (smoking years) vs. IMAT, what are the early striations and why does there appear to be a (weak) negative correlation?
+NOTE: 1 ALBUMIN VALUE IS AT 999, NEED TO UNDERSTAND THAT
+
+```{r baseline_visualizations, fig.width=10, echo=FALSE, warning=FALSE, }
+# Pick only visit 1
+visit_one <- all_at_once[, -46:-56] %>% 
+  dplyr::filter(VINO == 1) %>%
+  dplyr::select(-SUBJ, -VINO) %>%
+  dplyr::filter(ALBM < 999)
+
+# NOTE: 1 ALBUMIN VALUE IS AT 999, NEED TO UNDERSTAND THAT
+
+categoricals <- visit_one %>% dplyr::select(is.factor | IMAT)
+numericals <- visit_one %>% dplyr::select(is.numeric)
+
+# Make categorical violins against IMAT
+for (i in colnames(categoricals)) {
+  if(i != "IMAT") {
+    p <- visit_one %>% ggplot(aes_string(x = i, y = "IMAT")) +
+    geom_violin() +
+    labs(x = i) +
+    g.theme
+  
+    print(p)
+  }
+}
+
+# Make counts for categorical vs. PRI
+for (i in colnames(categoricals)) {
+  if(i != "PRI") {
+    p <- visit_one %>% ggplot(aes_string(x = i, y = "PRI")) +
+      geom_count() +
+      labs(x = i) +
+      g.theme
+    
+    print(p)
+  }
+}
+
+# Make violins for PRI against numericals
+for (i in colnames(numericals)) {
+  p <- visit_one %>% ggplot(aes_string(x = "PRI", y = i)) +
+  geom_violin() +
+  labs(y = i) +
+  g.theme
+
+  print(p)
+}
+
+# Make histograms for numerical data
+for (i in colnames(numericals)) {
+  p <- visit_one %>% ggplot(aes_string(x = i)) +
+    geom_histogram(bins = 30) +
+    labs(x = i) +
+    g.theme
+  
+  print(p)
+}
+
+
+# Make LOG histograms for numerical data
+# for (i in colnames(numericals)) {
+#   p <- visit_one %>% ggplot(aes_string(x = log(i))) +
+#     geom_histogram(bins = 30) +
+#     labs(x = i) +
+#     g.theme
+#   
+#   print(p)
+#   
+# }
+
+# Make scatters for numerical data against IMAT
+
+for (i in colnames(numericals)) {
+  if(i != "IMAT") {
+    p <- visit_one %>% ggplot(aes_string(x = i, y = "IMAT")) +
+      geom_point() +
+      labs(x = i) +
+      g.theme
+    
+    print(p)
+  }
+}
+
+pairs(numericals)
+
+```
+
 
 # Numerical EDA
 
@@ -216,16 +177,62 @@ Try looking at distances between points (if possible), correlations, partial cor
 
 ```{r baseline_numerical_EDA, echo=FALSE}
 print("Summary")
-summary(baseline)
-
-numeric <- baseline %>% dplyr::select(IMAT, AGEN, YRIN, SYRS, BMI)
+summary(visit_one)
 
 print("Partial Correlations")
-Sigma <- cor(na.omit(numeric))
+Sigma <- cor(na.omit(numericals))
 Sigma.inv <- solve(Sigma)
 Omega <- -cov2cor(Sigma.inv)
 diag(Omega) <- 1
 Omega
+
+print("Standardized Distances Check")
+scaled_numericals <- scale(numericals)
+numericals.scaled_dist <- pdist(scaled_numericals, "euclidean")
+boxplot(as.vector(numericals.scaled_dist))
+```
+A slight tail indicates some potential signal in the noise, though it's not completely clear that there is very much signal here.
+
+## Some First Models
+
+### Just IMAT
+
+```{r first_linear_reg, echo=FALSE}
+# Just some stuff that looked good in the EDA
+print("Guesses from EDA")
+linear.a <- lm(log(IMAT) ~ log(YRIN) + log(AGEN) + log(HGA1) + ETHN + LOI + ASIA + PRI + BED + PRAH, data = visit_one)
+summary(linear.a)
+
+print("Refining a bit")
+# Taking out BED
+linear.b <- lm(log(IMAT) ~ log(YRIN) + log(AGEN) + ETHN + LOI + ASIA + PRI, data = visit_one)
+summary(linear.b)
+
 ```
 
+### Just PRI
 
+```{r first_logistic, echo=FALSE}
+#omitting PRFQ because too many NAs
+logit_data <- visit_one %>% dplyr::filter(PRI == 'Y' | PRI == 'N')
+
+logit.a <- glm(PRI ~ log(IMAT) + log(YRIN) + log(AGEN) + log(HGA1) + LOI + ASIA + BED + MATT + WCTP + CUTP + SHC, data = logit_data, family = binomial)
+summary(logit.a)
+
+#Improvement? IDK what i'm doing here lol
+logit.b <- glm(PRI ~ log(IMAT) + log(YRIN) + log(AGEN) + LOI + ASIA + WCTP + CUTP + SHC, data = logit_data, family = binomial)
+summary(logit.b)
+
+```
+### Multivariate Model
+PRI & log(IMAT) vs. potential explainers, just seeing how this looks
+
+```{r first_multivariate, echo=FALSE}
+multivariate_model <- lm(cbind(PRI, log(IMAT)) ~ log(YRIN) + log(AGEN) + log(HGA1) + LOI + ASIA + BED + MATT + WCTP + CUTP + SHC + PRFQ, data = visit_one)
+
+summary(multivariate_model)
+vcov(multivariate_model)
+
+#Anova(multivariate_model)
+
+```

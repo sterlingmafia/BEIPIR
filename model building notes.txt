@@ -1,0 +1,60 @@
+model vars:
+IMAT
+-ETHN? unkn has a fatter top than not hs/L
+-LOI: Below T6 has clearly fatter top tail
+-ASIA: Complete has clearly fatter top tail
+-PRI: pre-established relationship to IMAT
+-BED: BHPTL has a fatter tail than BSTD with ~50 samples in each
+-MATT: potential relationship, but also possibly correlated to bed?
+	>yes, look at count thing
+-BOI, BLI, VASC, RESP: probably correlated to AGEN, which then correlates to IMAT
+-PraH - idk why but fatter tail for IMAT here
+
+
+PRI
+-ASIA: Complete has more PRIs, can test for ind. here
+-WCTP: wheelchair type seems related
+-CUTP: weirdly it seems not having a cushion induces fewer PRI???
+-BED: weirdly having a standard bed induces fewer PRI???
+-MATT: standard foam means fewer PRI???
+-SHC: more home care = more PRI, but probably people more at risk for PRI have better home care?
+-PRFQ: low sample size makes it hard to tell
+
+
+AGEN skewed
+YRIN exponential
+IMAT exponential, or chi square maybe?
+SYRS bimodal
+WT reasonably normally distributed
+Ht reasonably normally distributed
+BMI skewed
+ALBM skewed
+HGA1 very skewed or chi squared
+HRSC might be normal or skewed
+
+partial correlations:
+IMAT vs. YRIN
+AGEN vs. HGA1
+AGEN vs. YRIN
+
+
+Conclusions:
+log(IMAT)
+PRI
+~
+log(YRIN)
+log(AGEN)
+log(HGA1)
+ETHN
+LOI
+ASIA
+BED
+MATT
+WCTP
+CUTP
+SHC
+PRFQ
+
+
+
+
