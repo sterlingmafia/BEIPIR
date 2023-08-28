@@ -2,7 +2,7 @@
 title: "BEIPIR"
 author: "Dr. Jiayang Sun, Gabriel Brehm"
 date: "2023-02-22"
-output: pdf_document
+output: html_document
 ---
 
 ```{r setup, include=FALSE}
@@ -10,12 +10,21 @@ knitr::opts_chunk$set(echo = TRUE)
 
 library(tidyverse)
 library(ggplot2)
-library(plotly)
 library(readxl)
 library(rdist)
 library(forcats)
 library(car)
 library(ggthemes)
+library(FactoMineR)
+library(factoextra)
+library(rpart)
+library(rpart.plot)
+library(rattle)
+library(e1071)
+library(ranger)
+library(caret)
+library(ggparty)
+library(ggforce)
 ```
 
 ```{r read_in, include=FALSE}
@@ -31,13 +40,13 @@ all_at_once <- read_excel("OG Files/BEIPIR Master Key_Jan 2023v3b.xlsx",
 ```{r data_setup_and_wrangling, include=FALSE}
 # All At Once Data
 all_at_once <- all_at_once %>% mutate(across(SUBJ:YRIN, as.numeric))
-all_at_once <- all_at_once %>% mutate(across(RACE:PRI, as_factor))
+all_at_once <- all_at_once %>% mutate(across(RACE:PRI, factor))
 all_at_once <- all_at_once %>% mutate(across(IMAT, as.numeric))
-all_at_once <- all_at_once %>% mutate(across(WCTP:SMOK, as_factor))
+all_at_once <- all_at_once %>% mutate(across(WCTP:SMOK, factor))
 all_at_once <- all_at_once %>% mutate(across(SYRS:HGA1, as.numeric))
-all_at_once <- all_at_once %>% mutate(across(LIVS:PRFQ, as_factor))
+all_at_once <- all_at_once %>% mutate(across(LIVS:PRFQ, factor))
 all_at_once <- all_at_once %>% mutate(across(HRSC, as.numeric))
-all_at_once <- all_at_once %>% mutate(across(EMPL:EDUC, as_factor))
+all_at_once <- all_at_once %>% mutate(across(EMPL:EDUC, factor))
 
 # Baseline data (obv I figured out the tidyverse way to do this later lol)
 baseline$SUBJ <- as.integer(baseline$SUBJ)
@@ -72,7 +81,81 @@ baseline$EMPL <- as_factor(baseline$EMPL)
 baseline$MARS <- as_factor(baseline$MARS)
 baseline$EDUC <- as_factor(baseline$EDUC)
 
+# Fix Entry Errors
+levels(all_at_once$ETHN) <- c("Hs/L", "Hs/L", "Not Hs/L", "unk")
+levels(all_at_once$WCTP) <- c("AmnWC", "MWc", "MWc", "OWc", "PWc", "TRWc")
+levels(all_at_once$CUTP) <- c("ACu", "ACu", "FCu", "FCu", "LCu", "NoCu", "OCu")
 
+# Albumin values of 999 are equivalent to NA
+
+
+# Pick only visit 1
+visit_one <- all_at_once[, -46:-56] %>% 
+  dplyr::filter(VINO == 1) %>%
+  dplyr::select(-SUBJ, -VINO) %>%
+  dplyr::filter(ALBM < 999)
+
+
+
+# Bin the continuous variables based on the following criteria:
+# AGEN: 
+# 0 - 40: young
+# 41 - 55: middle age
+# 56-65: old mid
+# 66+: old
+# 
+# YRIN:
+# 0-8: low
+# 9-23: mid
+# 24+: high
+# 
+# IMAT:
+# 0-15
+# 16-21
+# 21-50
+# 50+
+# 
+# SYRS:
+# 5
+# 6-10
+# 11-20
+# 21+
+# 
+# HT, WT - ignore
+# 
+# BMI: 
+# 22
+# 25
+# 30
+# 40?
+# 
+# ALBM
+# 0-3: low
+# 3-5.5: NORMAL
+# 5.5+ high
+# 
+# HGA1:
+# 0-5.7: normal
+# 5.7+: pre-diabetic
+# 6.0+: diabetic
+# 
+# HRSC:
+# 0-4:
+# 5-12:
+# 13+:
+
+vone_binned <- visit_one %>% mutate(AGEN = cut(AGEN, breaks = c(-Inf, 40, 55, 65, Inf), labels = c("yng", "mid", "old", "sen")),
+                                    YRIN = cut(YRIN, breaks = c(-Inf, 8, 23, Inf), labels = c("sht", "med", "lng")),
+                                    IMAT = cut(IMAT, breaks = c(-Inf, 15, 21, 50, Inf), labels = c("low", "med", "hi", "xhi")),
+                                    SYRS = cut(SYRS, breaks = c(-Inf, 5, 10, 20, Inf), labels = c("low", "med", "hi", "xhi")),
+                                    BMI = cut(BMI, breaks = c(-Inf, 22, 25, 30, Inf), labels = c("low", "med", "hi", "xhi")),
+                                    ALBM = cut(ALBM, breaks = c(-Inf, 3, 5.5, Inf), labels = c("low", "nrm", "hi")),
+                                    HGA1 = cut(HGA1, breaks = c(-Inf, 5.7, 6.0, Inf), labels = c("nrm", "pred", "diab")),
+                                    HRSC = cut(HRSC, breaks = c(-Inf, 4, 12, Inf), labels = c("low", "med", "hi"))) %>%
+  select(-WT, -HT)
+
+categoricals <- visit_one %>% dplyr::select(where(is.factor) | IMAT)
+continuous <- visit_one %>% dplyr::select(where(is.numeric))
 
 ```
 
@@ -80,22 +163,12 @@ baseline$EDUC <- as_factor(baseline$EDUC)
 
 ```{r themes, include=FALSE}
 g.theme <- theme_stata()
-
 ```
 
-NOTE: 1 ALBUMIN VALUE IS AT 999, NEED TO UNDERSTAND THAT
 
-```{r baseline_visualizations, fig.width=10, echo=FALSE, warning=FALSE, }
-# Pick only visit 1
-visit_one <- all_at_once[, -46:-56] %>% 
-  dplyr::filter(VINO == 1) %>%
-  dplyr::select(-SUBJ, -VINO) %>%
-  dplyr::filter(ALBM < 999)
+```{r baseline_visualizations, fig.width=10, echo=FALSE, warning=FALSE, eval=FALSE}
 
-# NOTE: 1 ALBUMIN VALUE IS AT 999, NEED TO UNDERSTAND THAT
 
-categoricals <- visit_one %>% dplyr::select(is.factor | IMAT)
-numericals <- visit_one %>% dplyr::select(is.numeric)
 
 # Make categorical violins against IMAT
 for (i in colnames(categoricals)) {
@@ -121,8 +194,8 @@ for (i in colnames(categoricals)) {
   }
 }
 
-# Make violins for PRI against numericals
-for (i in colnames(numericals)) {
+# Make violins for PRI against continuous
+for (i in colnames(continuous)) {
   p <- visit_one %>% ggplot(aes_string(x = "PRI", y = i)) +
   geom_violin() +
   labs(y = i) +
@@ -132,7 +205,7 @@ for (i in colnames(numericals)) {
 }
 
 # Make histograms for numerical data
-for (i in colnames(numericals)) {
+for (i in colnames(continuous)) {
   p <- visit_one %>% ggplot(aes_string(x = i)) +
     geom_histogram(bins = 30) +
     labs(x = i) +
@@ -143,7 +216,7 @@ for (i in colnames(numericals)) {
 
 
 # Make LOG histograms for numerical data
-# for (i in colnames(numericals)) {
+# for (i in colnames(continuous)) {
 #   p <- visit_one %>% ggplot(aes_string(x = log(i))) +
 #     geom_histogram(bins = 30) +
 #     labs(x = i) +
@@ -155,7 +228,7 @@ for (i in colnames(numericals)) {
 
 # Make scatters for numerical data against IMAT
 
-for (i in colnames(numericals)) {
+for (i in colnames(continuous)) {
   if(i != "IMAT") {
     p <- visit_one %>% ggplot(aes_string(x = i, y = "IMAT")) +
       geom_point() +
@@ -166,12 +239,104 @@ for (i in colnames(numericals)) {
   }
 }
 
-pairs(numericals)
+pairs(continuous)
+
+```
+
+```{r baseline_categorical_EDA_reduced, warning=FALSE, echo=FALSE}
+
+
+categoricals <- visit_one %>% dplyr::select(is.factor | IMAT)
+continuous <- visit_one %>% dplyr::select(is.numeric)
+
+p <- visit_one %>% ggplot(aes(x = PRI)) +
+  geom_violin(aes(y = IMAT)) +
+  geom_text(stat='count', aes(label=..count..)) +
+  g.theme
+print(p)
+
+p <- visit_one %>% ggplot(aes(x = LOI)) +
+  geom_violin(aes(y = IMAT)) +
+  geom_text(stat='count', aes(label=..count..)) +
+  g.theme
+print(p)
+
+
+p <- visit_one %>% ggplot(aes(x = ASIA)) +
+  geom_violin(aes(y = IMAT)) +
+  geom_text(stat='count', aes(label=..count..)) +
+  g.theme
+print(p)
+
+
+p <- visit_one %>% ggplot(aes(x = GEND)) +
+  geom_violin(aes(y = IMAT)) +
+  geom_text(stat='count', aes(label=..count..)) +
+  g.theme
+print(p)
+
+
+p <- visit_one %>% ggplot(aes(x = BOI)) +
+  geom_violin(aes(y = IMAT)) +
+  geom_text(stat='count', aes(label=..count..)) +
+  g.theme
+print(p)
+
+
+p <- visit_one %>% ggplot(aes(x = BLI)) +
+  geom_violin(aes(y = IMAT)) +
+  geom_text(stat='count', aes(label=..count..)) +
+  g.theme
+print(p)
+
+
+# Make violins for PRI against continuous
+for (i in colnames(continuous)) {
+  p <- visit_one %>% ggplot(aes_string(x = "PRI")) +
+  geom_violin(aes_string(y = i)) +
+  geom_text(stat='count', aes(label=..count..)) +
+  labs(y = i) +
+  g.theme
+
+  print(p)
+}
+
+# Make counts for categorical vs. PRI
+
+p <- visit_one %>% ggplot(aes(x = LOI, y = PRI)) +
+  geom_count() +
+  g.theme
+print(p)
+table(categoricals$LOI, categoricals$PRI)
+
+p <- visit_one %>% ggplot(aes(x = ASIA, y = PRI)) +
+  geom_count() +
+  g.theme
+print(p)
+table(categoricals$ASIA, categoricals$PRI)
+
+p <- visit_one %>% ggplot(aes(x = CUTP, y = PRI)) +
+  geom_count() +
+  g.theme
+print(p)
+table(categoricals$CUTP, categoricals$PRI)
+
+p <- visit_one %>% ggplot(aes(x = BED, y = PRI)) +
+  geom_count() +
+  g.theme
+print(p)
+table(categoricals$BED, categoricals$PRI)
+
+
+# Make scatters for numerical data against IMAT
+
+
+continuous %>% dplyr::select(-HGA1, -ALBM, -WT, -HT, -HRSC) %>% pairs(panel = panel.smooth, lwd = 2, cex = 1.5, col = 4)
 
 ```
 
 
-# Numerical EDA
+# Continuous EDA
 
 Try looking at distances between points (if possible), correlations, partial correlations
 
@@ -180,18 +345,83 @@ print("Summary")
 summary(visit_one)
 
 print("Partial Correlations")
-Sigma <- cor(na.omit(numericals))
+Sigma <- cor(na.omit(continuous))
 Sigma.inv <- solve(Sigma)
 Omega <- -cov2cor(Sigma.inv)
 diag(Omega) <- 1
 Omega
 
+corrplot::corrplot(Omega)
+
+## Standardized distances 
 print("Standardized Distances Check")
-scaled_numericals <- scale(numericals)
-numericals.scaled_dist <- pdist(scaled_numericals, "euclidean")
-boxplot(as.vector(numericals.scaled_dist))
+scaled_continuous <- scale(continuous)
+continuous.scaled_dist <- pdist(na.omit(scaled_continuous), "euclidean")/sqrt(ncol(continuous)-1)
+boxplot(as.vector(continuous.scaled_dist))
 ```
-A slight tail indicates some potential signal in the noise, though it's not completely clear that there is very much signal here.
+A slight tail indicates some potential signal in the noise, though it's not completely clear that there is very much signal here. This could also just indicate that the signal is more present in the categorical than the continuous variables.
+
+```{r correspondence, fig.width=10, fig.height=8}
+# Try binning continuous variables using CART.
+# Use 'cex' to pick size of things, use ggplot for plotting of analysis
+# Try plotting first 3 dimensions
+# Set a diff color for each variable 
+# After plotting and understanding, remove variables that don't seem to have a relationship so that plot looks cleaner
+# use lower case
+# take out center variables
+# draw densities around remaining variables
+
+mca_dat <- vone_binned
+
+cats = apply(mca_dat, 2, function(x) nlevels(as.factor(x)))
+
+visit_one.ca <- MCA(X = mca_dat, graph = FALSE)
+mca_eig <- as.data.frame(visit_one.ca$eig)
+# data frames for ggplot
+
+# mca1_vars_df = data.frame(visit_one.ca$var$coord, Variable = rep(names(cats), 
+#     cats))
+# mca1_obs_df = data.frame(visit_one.ca$ind$coord)
+
+scree <- mca_eig %>% ggplot(aes(x = 1:nrow(mca_eig), y = `percentage of variance`)) +
+  geom_point() +
+  geom_line() +
+  g.theme
+scree
+# 
+# 
+# # plot of variable categories
+# mca.plot <- ggplot(data = mca1_vars_df, aes(x = Dim.1, y = Dim.2, label = rownames(mca1_vars_df))) +
+#   geom_hline(yintercept = 0, colour = "gray70") +
+#   geom_vline(xintercept = 0, colour = "gray70") +
+#   # geom_point(colour = "gray50", alpha = 0.7) +
+#   geom_density2d(colour = "gray80") +
+#   geom_text(data = mca1_vars_df, aes(x = Dim.1, y = Dim.2, label = rownames(mca1_vars_df), colour = Variable), size = 2.5) +
+#   ggtitle("MCA plot of variables using R package FactoMineR") + scale_colour_discrete(name = "Variable") +
+#   g.theme
+# mca.plot
+
+# options(repr.plot.width =20, repr.plot.height =20)
+
+# ggsave("mca_plot.png", plot = mca.plot, width = 30, height = 30)
+
+var_names <- rownames(visit_one.ca$var$contrib)
+undesired_vars1 <- c("YRIN.NA", "ASIA_Unk", "PRI_Unk", "IMAT.NA", "DIAB_unk", "PAIN_N/A", "PAIN_unk", "SLEP_N/A", "SLEP_unk", "HGA1.NA", "SHC_unk", "USHC_unk", "PRAH_unk", "PRFQ_unk", "HRSC.NA", "MARS_unk")
+
+desired_variables <- var_names[!var_names %in% undesired_vars1] 
+
+
+p <- fviz_mca_var(visit_one.ca, col.var = "steelblue", repel = TRUE, 
+             select.var = list(name = desired_variables)) +
+  geom_circle(aes(x0 = -1.1, y0 = 0.9, r = 0.4), color = "red", fill = "transparent") +
+  geom_circle(aes(x0 = 1.25, y0 = 0.75, r = 0.2), color = "red", fill = "transparent") +
+  geom_circle(aes(x0 = 1.6, y0 = -1.25, r = 0.4), color = "red", fill = "transparent") +
+  geom_ellipse(aes(x0 = 0, y0 = -0.97, a = 0.53, b = 0.3, angle = 0), color = "red", fill = "transparent") +
+  g.theme
+p
+ggsave("correspondence.png", p, dpi = 300)
+```
+
 
 ## Some First Models
 
@@ -199,40 +429,215 @@ A slight tail indicates some potential signal in the noise, though it's not comp
 
 ```{r first_linear_reg, echo=FALSE}
 # Just some stuff that looked good in the EDA
+#ln(y/(1-y))
 print("Guesses from EDA")
-linear.a <- lm(log(IMAT) ~ log(YRIN) + log(AGEN) + log(HGA1) + ETHN + LOI + ASIA + PRI + BED + PRAH, data = visit_one)
+linear.a <- lm(log(IMAT/(100-IMAT)) ~ YRIN + AGEN + HGA1 + LOI + ASIA + PRI + BED + PRAH, data = visit_one)
 summary(linear.a)
+
+
+print("Transformed Guesses from EDA")
+linear.b <- lm(log(IMAT/(100-IMAT)) ~ log(YRIN) + log(AGEN) + log(HGA1) + LOI + ASIA + PRI + BED + PRAH, data = visit_one)
+summary(linear.b)
+
 
 print("Refining a bit")
 # Taking out BED
-linear.b <- lm(log(IMAT) ~ log(YRIN) + log(AGEN) + ETHN + LOI + ASIA + PRI, data = visit_one)
-summary(linear.b)
+linear.c <- lm(log(IMAT/(100-IMAT)) ~ log(YRIN) + log(AGEN) + LOI + ASIA + PRI, data = visit_one)
+summary(linear.c)
 
 ```
 
 ### Just PRI
 
+```{r class_data}
+# Set up data to make sure that all points have a response classification
+# clinical, biological, and social factors should take precedence over other factors like equipment which likely just show attempts to treat the issues at hand
+
+class_data <- visit_one %>% dplyr::filter(PRI == 'Y' | PRI == 'N')
+class_binned <- vone_binned %>% dplyr::filter(PRI == 'Y' | PRI == 'N') %>%
+  select(-WCTP, -CUTP, -BED, -MATT, -SHC, -USHC, -PRAH, -PRFQ)
+
+levels(class_data$PRI) <- c("N", "N", "Y")
+levels(class_binned$PRI) <- c("N", "N", "Y")
+
+# Randomly split to ~80% training, ~20% test
+train_samp <- sample(nrow(class_data), size = round(0.8*nrow(class_data)), replace = FALSE)
+
+class.train <- class_data[train_samp,]
+class.test <- class_data[-train_samp,]
+binned.train <- class_binned[train_samp,]
+binned.test <- class_binned[-train_samp,]
+
+```
+
 ```{r first_logistic, echo=FALSE}
 #omitting PRFQ because too many NAs
-logit_data <- visit_one %>% dplyr::filter(PRI == 'Y' | PRI == 'N')
 
-logit.a <- glm(PRI ~ log(IMAT) + log(YRIN) + log(AGEN) + log(HGA1) + LOI + ASIA + BED + MATT + WCTP + CUTP + SHC, data = logit_data, family = binomial)
-summary(logit.a)
+logistic.a <- glm(PRI ~ log(IMAT) + log(YRIN) + log(AGEN) + log(HGA1) + LOI + ASIA + BED + MATT + WCTP + CUTP + SHC, data = class.train, family = binomial)
+summary(logistic.a)
 
 #Improvement? IDK what i'm doing here lol
-logit.b <- glm(PRI ~ log(IMAT) + log(YRIN) + log(AGEN) + LOI + ASIA + WCTP + CUTP + SHC, data = logit_data, family = binomial)
-summary(logit.b)
+logistic.b <- glm(PRI ~ log(IMAT) + log(YRIN) + log(AGEN) + LOI + ASIA + WCTP + CUTP + SHC, data = class.train, family = binomial)
+summary(logistic.b)
 
 ```
-### Multivariate Model
-PRI & log(IMAT) vs. potential explainers, just seeing how this looks
 
-```{r first_multivariate, echo=FALSE}
-multivariate_model <- lm(cbind(PRI, log(IMAT)) ~ log(YRIN) + log(AGEN) + log(HGA1) + LOI + ASIA + BED + MATT + WCTP + CUTP + SHC + PRFQ, data = visit_one)
 
-summary(multivariate_model)
-vcov(multivariate_model)
+```{r tree_class, fig.width=10, fig.height=7}
+# Use LOOCV (leave-one-out-cross-validation)
+# make complexity parameter smaller (cp), maybe 0.001, and try again, then prune
+# www.statmethods.net/advstats/cart.html
+# Try a random forest as well
+# Check dr. Sun's webpage for other tree plot methods
+# force tree to include sleep, pain, imat, age, ASIA
+# try using stumps for each variable to figure out how predictive they are individually
+# pri.cart_all_data <- rpart(PRI ~ ., data = class_data, method = "class", control = rpart.control(xval = nrow(class_data)))
 
-#Anova(multivariate_model)
+pri.no_test <- rpart(PRI ~ ., data = class_data, method = "class", control = rpart.control(xval = nrow(class_data)))
+pri.cart <- rpart(PRI ~ ., data = class.train, method = "class", control = rpart.control(xval = nrow(class.train)))
+pri.cart.binned <- rpart(PRI ~ ., data = binned.train, method = "class", control = rpart.control(xval = nrow(binned.train)))
+pri.cart.forced <- rpart(PRI ~ SLEP + PAIN + IMAT + AGEN + YRIN + ASIA, data = class.train, method = "class", control = rpart.control(xval = nrow(class.train)))
+pri.cart.forced.binned <- rpart(PRI ~ SLEP + PAIN + IMAT + AGEN + YRIN + ASIA, data = binned.train, method = "class", control = rpart.control(xval = nrow(binned.train)))
+
+tree_plot <- function(tree, title) {
+  g <- ggparty(as.party(tree)) + 
+  ggtitle(title) +
+  geom_edge() +
+  geom_edge_label() +
+  geom_node_label(line_list = list(aes(label = splitvar),
+                                   aes(label = paste0("N=", nodesize), 
+                                       size = 10)),
+                  line_gpar = list(list(size = 13), 
+                                   list(size = 10)), 
+                  ids = "inner") +
+  geom_node_plot(gglist = list(
+    geom_bar(aes(x = "", fill = PRI),
+             position = position_fill(), color = "black"),
+      theme_minimal(),
+      scale_fill_manual(values = c("gray50", "gray80"), guide = FALSE),
+      scale_y_continuous(breaks = c(0, 1)),
+    xlab(""), 
+    ylab("Probability"),
+    geom_text(aes(x = "", group = PRI,
+                  label = stat(count)),
+              stat = "count", position = position_fill(), vjust = 1.1)),
+    shared_axis_labels = TRUE)
+  return(g)
+}
+
+confusion_matrix <- function(object, newdata) {
+  preds <- as.data.frame(predict(object, newdata)) %>% mutate(YorN = case_when(
+  Y >= 0.5 ~ "Y",
+  TRUE ~ "N"
+)) %>% mutate(across(YorN, as.factor))
+  
+  caret::confusionMatrix(data = preds$YorN, reference = newdata$PRI, positive = "Y")
+}
+
+p.full <- tree_plot(pri.cart, 
+          title = "PRI Classification Tree (Full)") +
+  theme(panel.background = element_rect(fill = "white"))
+
+p.no_test <- tree_plot(pri.no_test, 
+          title = "PRI Classification Tree (Full) With All Data") +
+  theme(panel.background = element_rect(fill = "white"))
+
+p.binned <- tree_plot(pri.cart.binned,
+          title = "Binned PRI Classification Tree") +
+  theme(panel.background = element_rect(fill = "white"))
+
+p.restrict <- tree_plot(pri.cart.forced,
+          title = "Reduced Variables PRI Classification Tree") +
+  theme(panel.background = element_rect(fill = "white"))
+
+p.restrict.binned <- tree_plot(pri.cart.forced.binned,
+                               title = "Reduced Variables with Binning PRI Classification Tree") +
+  theme(panel.background = element_rect(fill = "white"))
+
+                               
+
+c.full.test <- confusion_matrix(pri.cart, class.test)
+c.full.train <- confusion_matrix(pri.cart, class.train)
+c.binned.test <- confusion_matrix(pri.cart.binned, binned.test)
+c.binned.train <- confusion_matrix(pri.cart.binned, binned.train)
+c.forced.test <- confusion_matrix(pri.cart.forced, class.test)
+c.forced.train <- confusion_matrix(pri.cart.forced, class.train)
+c.forced.binned.test <- confusion_matrix(pri.cart.forced.binned, binned.test)
+c.forced.binned.train <- confusion_matrix(pri.cart.forced.binned, binned.train)
+
+trees <- data.frame(matrix(nrow = 8, ncol = 5))
+colnames(trees) <- c("Tree", "Accuracy", "Sensitivity", "Specificity", "Precision")
+
+trees[1,] <- c("Full/test", c.full.test$overall[1], c.full.test$byClass[1], c.full.test$byClass[2], c.full.test$byClass[5])
+trees[2,] <- c("Full/train", c.full.train$overall[1], c.full.train$byClass[1], c.full.train$byClass[2], c.full.train$byClass[5])
+trees[3,] <- c("Binned/test", c.binned.test$overall[1], c.binned.test$byClass[1], c.binned.test$byClass[2], c.binned.test$byClass[5])
+trees[4,] <- c("Binned/train", c.binned.train$overall[1], c.binned.train$byClass[1], c.binned.train$byClass[2], c.binned.train$byClass[5])
+trees[5,] <- c("Restricted/test", c.forced.test$overall[1], c.forced.test$byClass[1], c.forced.test$byClass[2], c.forced.test$byClass[5])
+trees[6,] <- c("Restricted/train", c.forced.train$overall[1], c.forced.train$byClass[1], c.forced.train$byClass[2], c.forced.train$byClass[5])
+trees[7,] <- c("Restricted & Binned/test", c.forced.binned.test$overall[1], c.forced.binned.test$byClass[1], c.forced.binned.test$byClass[2], c.forced.binned.test$byClass[5])
+trees[8,] <- c("Restricted & Binned/train", c.forced.binned.train$overall[1], c.forced.binned.train$byClass[1], c.forced.binned.train$byClass[2], c.forced.binned.train$byClass[5])
+
+trees %>% mutate(across(Accuracy:Precision, as.numeric)) 
+
+trees <- rapply(object = trees, f = round, classes = "numeric", how = "replace", digits = 3) 
+
 
 ```
+
+
+
+```{r tree_stumps}
+
+tree_plot <- function(tree, title) {
+  g <- ggparty(as.party(tree)) + 
+  ggtitle(title) +
+  geom_edge() +
+  geom_edge_label() +
+  geom_node_label(line_list = list(aes(label = splitvar),
+                                   aes(label = paste0("N=", nodesize), 
+                                       size = 10)),
+                  line_gpar = list(list(size = 13), 
+                                   list(size = 10)), 
+                  ids = "inner") +
+  geom_node_plot(gglist = list(
+    geom_bar(aes(x = "", fill = PRI),
+             position = position_fill(), color = "black"),
+      theme_minimal(),
+      scale_fill_manual(values = c("gray50", "gray80"), guide = FALSE),
+      scale_y_continuous(breaks = c(0, 1)),
+    xlab(""), 
+    ylab("Probability"),
+    geom_text(aes(x = "", group = PRI,
+                  label = stat(count)),
+              stat = "count", position = position_fill(), vjust = 1.1)),
+    shared_axis_labels = TRUE)
+  return(g)
+}
+
+pri.stump.SLEP <- rpart(PRI ~ SLEP, data = binned.train, method = "class", control = rpart.control(xval = nrow(binned.train)))
+pri.stump.PAIN <- rpart(PRI ~ PAIN, data = binned.train, method = "class", control = rpart.control(xval = nrow(binned.train)))
+pri.stump.IMAT <- rpart(PRI ~ IMAT, data = binned.train, method = "class", control = rpart.control(xval = nrow(binned.train)))
+pri.stump.AGEN <- rpart(PRI ~ AGEN, data = binned.train, method = "class", control = rpart.control(xval = nrow(binned.train)))
+pri.stump.YRIN <- rpart(PRI ~ YRIN, data = binned.train, method = "class", control = rpart.control(xval = nrow(binned.train)))
+pri.stump.ASIA <- rpart(PRI ~ ASIA, data = binned.train, method = "class", control = rpart.control(xval = nrow(binned.train)))
+
+# most interesting are IMAT, YRIN, ASIA
+p.stump.slep <- tree_plot(pri.stump.SLEP, "SLEP Stump") + theme(panel.background = element_rect(fill = "white"))
+p.stump.pain <- tree_plot(pri.stump.PAIN, "PAIN Stump") + theme(panel.background = element_rect(fill = "white"))
+p.stump.imat <- tree_plot(pri.stump.IMAT, "IMAT Stump") + theme(panel.background = element_rect(fill = "white"))
+p.stump.agen <- tree_plot(pri.stump.AGEN, "AGEN Stump") + theme(panel.background = element_rect(fill = "white"))
+p.stump.yrin <- tree_plot(pri.stump.YRIN, "YRIN Stump") + theme(panel.background = element_rect(fill = "white"))
+p.stump.asia <- tree_plot(pri.stump.ASIA, "ASIA Stump") + theme(panel.background = element_rect(fill = "white"))
+
+
+```
+
+
+```{r random_forest}
+
+
+
+```
+
+
+

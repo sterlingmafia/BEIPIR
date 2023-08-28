@@ -56,5 +56,70 @@ SHC
 PRFQ
 
 
+Logistic vs. Logit
+LOGIT
+in a linear regression assumes error gives normal distribution which allows Y to vary without bound. However, for things like percentages (1 - 100), there are limits to where Y can vary. 
+Use: ln(y/(1-y)) ~ xB + error
+
+LOGISTIC
+Use generalized linear model with a binomial outcome
+
+SIS: Show independence screening
 
 
+SUN'S COMMENTS ON EDA:
+15 minutes to talk, time for questions after
+~15 pages at about 1 min per pages
+-introduce what a violin plot is, how to interpret
+-show/summarize the interesting ones
+-rather than dot plots (or in addition), use percentages in tables
+-show either the important or interesting histograms
+-do a pairwise plot, but only include the useful variables
+	>put a line in the pairwise plot (something with "panel.smooth"?)
+		+pairs(swiss, panel = panel.smooth, lwd = 2, cex = 1.5, col = 4)
+		
+-for preliminary models, also allow for interactions and see what happens
+-try glm with steps and square of variables
+	>if it complains, focus on the ones we are finding significant
+	>MAKE SURE TO FIX IMAT so it's recognized as a percentage
+
+
+
+
+
+Title Slide
+Intro
+	-Introduce the problem
+	-Research Aims
+EDA
+	-Introduce data
+		>participants
+		>longitudinal data
+	-EDA
+		>single key variables
+			+histograms
+			+counts
+		>violins with counts
+		>percentages in tables rather than dot plots
+		>scatters with panel.smooth
+	-preliminary regressions, make sure to make them logit
+		>what I have so far
+		>try including interactions
+Next Steps
+
+
+
+
+Ordinal multinomial logistic
+Adjacent violator algorithm
+
+
+
+
+
+DO THEY GET PHYSICAL THERAPY? CAN WE TRACK THAT?
+
+
+
+Correspondence Analysis - compare categorical variables, analagous to PCA
+Unsupervised analysis - exploratory factor analysis

@@ -1,0 +1,27 @@
+AIM 1:
+Need to do feature selection for regression
+n ~= 97, p = 10k???
+SIS - sure independence screening
+tree-SIS: run a tree model, look at RSS, low RSS means a variable is more important, high RSS means a variable is less important
+
+Model selection:
+
+
+-Correspondence Analysis
+
+-Logit regression 
+imat -> log(imat/100-imat) ~ predictors, 
+
+-beta regression
+EXTENDING THE LINEAR MODEL WITH R 2ND EDITION, check class web page - helps with beta regression
+
+
+AIM 2:
+Random effects vs. fixed(mixed?) effects
+
+-generalized linear mixed-effects model (GLMM)
+https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7883629/
+	>lots of previous work on analyzing genomic stuff for IMAT and pressure injuries
+
+
+
